@@ -20,6 +20,7 @@ import file button: when pressed, opens a dialog that allows the user to select 
            
 """
 
+
 def get_files_input(single_file_selection):
     """
     opens a file dialog box with filter to show only image files, lets the user select a number of files
@@ -52,12 +53,16 @@ def process_name(path, pref, flag_seq):
         if "." in short_name and short_name[0] != ".":
             short_name = short_name.split(".")[0]
             short_name += "_sequence"
-    clean_name = short_name.replace(".", "_")
-    # add prefix 
-    pref_name = pref + clean_name
-    
+    for char in short_name:
+        print(char)
+        if not char.isalnum():
+            print("yesy")
+            short_name = short_name.replace(char, "_")
+    # add prefix
+    pref_name = pref + short_name
+
     return pref_name
-    
+
 
 def create_file_node(path, name):
     """
@@ -67,10 +72,10 @@ def create_file_node(path, name):
     :param name: a string, the name for the nodes creation. gets a suffix according to node type
     :return: a PyNode, the file node created
     """
-    file_node = pm.shadingNode('file', n = name + "_file", asTexture=1, isColorManaged=1)
+    file_node = pm.shadingNode('file', n=name + "_file", asTexture=1, isColorManaged=1)
     p2d_node = pm.shadingNode('place2dTexture', name=name + "_place2dTexture", asUtility=1)
-    attribute_list = ["coverage", "translateFrame", "rotateFrame", "mirrorU", "mirrorV", 
-                      "stagger", "wrapU", "wrapV", "repeatUV", "offset", "rotateUV", "noiseUV", 
+    attribute_list = ["coverage", "translateFrame", "rotateFrame", "mirrorU", "mirrorV",
+                      "stagger", "wrapU", "wrapV", "repeatUV", "offset", "rotateUV", "noiseUV",
                       "vertexUvOne", "vertexUvTwo", "vertexUvThree", "vertexCameraOne"]
     for at in attribute_list:
         p2d_node.attr(at) >> file_node.attr(at)
@@ -79,6 +84,7 @@ def create_file_node(path, name):
     file_node.ftn.set(path)
     return file_node
 
+
 def create_lambert_mtl(name):
     """
     creates a lambert shader with a shading grp
@@ -86,10 +92,11 @@ def create_lambert_mtl(name):
     :param name: a string, the name for the nodes creation
     :return: an array PyNodes; the shader, the shading grp
     """
-    shd = pm.shadingNode('lambert', n = name + "_mtl", asShader=1)
-    shdSG = pm.sets(n = shd.name() + 'SG' % shd, em=1, renderable=1, noSurfaceShader=1)
+    shd = pm.shadingNode('lambert', n=name + "_mtl", asShader=1)
+    shdSG = pm.sets(n=shd.name() + 'SG' % shd, em=1, renderable=1, noSurfaceShader=1)
     shd.outColor >> shdSG.surfaceShader
     return shd, shdSG
+
 
 def create_ratio_plane(file_node, name, flag_alpha, mult):
     """
@@ -105,26 +112,27 @@ def create_ratio_plane(file_node, name, flag_alpha, mult):
     """
     size_x = file_node.osx.get()
     size_y = file_node.osy.get()
-    print (size_x, size_y)
+    print(size_x, size_y)
     if not mult is None:
         size_x *= mult
         size_y *= mult
-    
-    poly_plane, ch = pm.polyPlane(sx=1, sy=1, w=size_x, h=size_y, n = name + "_card")
+
+    poly_plane, ch = pm.polyPlane(sx=1, sy=1, w=size_x, h=size_y, n=name + "_card")
     ch.rename(name + "_polyPlane")
-    
+
     # create shader 
     shd, shdSG = create_lambert_mtl(name)
     file_node.outColor >> shd.attr("color")
-    
+
     # handle alpha 
     if flag_alpha:
         file_node.outTransparency >> shd.transparency
-    
+
     # assign shader to plane
-    pm.sets( shdSG, forceElement=poly_plane )
+    pm.sets(shdSG, forceElement=poly_plane)
     return poly_plane
-    
+
+
 def add_item_to_grp(item, pref):
     """
     parents item into a grp, it grp in the requested name does not exist- creates one
@@ -142,6 +150,7 @@ def add_item_to_grp(item, pref):
     pm.select(cl=1)
     return grp
 
+
 def warn_if_name_exists(name):
     """
     checks if an object of the name exists in the scene
@@ -155,6 +164,7 @@ def warn_if_name_exists(name):
         warning = None
     return warning
 
+
 def handle_sequence(file_node):
     """
     receives a file node and enables use image sequence
@@ -165,6 +175,7 @@ def handle_sequence(file_node):
     file_node.useFrameExtension.set(1)
     pm.runtime.ToggleAttributeEditor()
     pm.select(file_node)
+
 
 def convert_to_float_if_number(string):
     """
@@ -178,6 +189,7 @@ def convert_to_float_if_number(string):
     except ValueError:
         mult = None
     return mult
+
 
 def check_name_validity(string):
     """
@@ -234,30 +246,29 @@ def main_import_images(img_pref_input, flag_alpha, flag_scale, size_mult_input, 
     if error_list:
         errors_string = ""
         for error in error_list:
-            errors_string += error+"\n"
+            errors_string += error + "\n"
 
         pm.confirmDialog(title='Error', message=errors_string, button='OK', defaultButton='OK', cancelButton='OK')
     else:
         imgs_files = get_files_input(flag_seq)
-        if not imgs_files is None:
+        if imgs_files is not None:
             for path in imgs_files:
-               main_name = process_name(path, img_pref_input, flag_seq)
-               name_suffixes = ["_file", "_place2dTexture", "_mtl", "_card"]
-               for suff in name_suffixes:
-                   warning = warn_if_name_exists(main_name + suff)
-                   if not warning is None:
-                       warning_list.append(warning)
-               file_node = create_file_node(path, main_name)
-               poly_plane = create_ratio_plane(file_node, main_name, flag_alpha, mult)
-               add_item_to_grp(poly_plane, img_pref_input)
-               if flag_seq:
-                   handle_sequence(file_node)
+                main_name = process_name(path, img_pref_input, flag_seq)
+                name_suffixes = ["_file", "_place2dTexture", "_mtl", "_card"]
+                for suff in name_suffixes:
+                    warning = warn_if_name_exists(main_name + suff)
+                    if warning is not None:
+                        warning_list.append(warning)
+                file_node = create_file_node(path, main_name)
+                poly_plane = create_ratio_plane(file_node, main_name, flag_alpha, mult)
+                add_item_to_grp(poly_plane, img_pref_input)
+                if flag_seq:
+                    handle_sequence(file_node)
         for warning in warning_list:
-            print (warning)
+            print(warning)
 
 
 class window_ui(object):
-
     WINDOW_NAME = "images_importer"
 
     cb_alpha = None
@@ -266,11 +277,8 @@ class window_ui(object):
     size_mult_input = None
     img_pref_input = None
 
-
     @classmethod
-
     def display(cls):
-        print "updeted"
         """
         creates and displays a window
 
@@ -289,51 +297,54 @@ class window_ui(object):
 
         sep0 = pm.separator(style="in", h=3)
         rows = pm.rowColumnLayout(numberOfColumns=2, columnWidth=[(1, 110), (2, 130)])
-        img_pref_text = pm.text(label='Image Card Prefix: ', al="right")
+        pm.text(label='Image Card Prefix: ', al="right")
         cls.img_pref_input = pm.textField(tx="img_")
         pm.setParent('..')
 
         sep1 = pm.separator(style="in", h=3)
         cls.cb_alpha = pm.checkBox(l="Alpah Channel", al="center")
-        cls.cb_scale = pm.checkBox(l="Scale Ratio", al="center", changeCommand="from image_card_importer.image_card_importer_tool import window_ui\nwindow_ui.cb_scale_toggled()")
+        cls.cb_scale = pm.checkBox(l="Scale Ratio", al="center",
+                                   changeCommand="from image_card_importer.image_card_importer_tool import window_ui\n"
+                                                 "window_ui.cb_scale_toggled()")
         cls.size_mult_input = pm.textField(tx="2", enable=0)
         cls.cb_seq = pm.checkBox(l="Image Sequence", al="center")
 
         sep2 = pm.separator(style="in", h=3)
-        btn_notes_txt = pm.text(label='Please select image files to import as cards', al="center", font="obliqueLabelFont" )
+        btn_notes_txt = pm.text(label='Please select image files to import as cards', al="center",
+                                font="obliqueLabelFont")
         btn_import = pm.button(l="Import Images", al="center", h=30, w=150)
-        btn_import.setCommand("from image_card_importer.image_card_importer_tool import window_ui\nwindow_ui.import_button()")
+        btn_import.setCommand(
+            "from image_card_importer.image_card_importer_tool import window_ui\nwindow_ui.import_button()")
 
         pm.formLayout(form, edit=True,
-              attachForm=[
-                  (sep0, 'left', 5), (sep0, 'right', 5),
-                  (sep0, 'top', 0),
-                  (rows, 'left', 10), (rows, 'right', 10),
-                  (cls.cb_alpha, 'left', 20),
-                  (btn_notes_txt, 'left', 40),
-                  (cls.cb_scale, 'left', 20),
-                  (sep1, 'left', 5), (sep1, 'right', 5),
-                  (sep2, 'left', 5), (sep2, 'right', 5),
-                  (btn_import, 'left', 65),
-              ],
+                      attachForm=[
+                          (sep0, 'left', 5), (sep0, 'right', 5),
+                          (sep0, 'top', 0),
+                          (rows, 'left', 10), (rows, 'right', 10),
+                          (cls.cb_alpha, 'left', 20),
+                          (btn_notes_txt, 'left', 40),
+                          (cls.cb_scale, 'left', 20),
+                          (sep1, 'left', 5), (sep1, 'right', 5),
+                          (sep2, 'left', 5), (sep2, 'right', 5),
+                          (btn_import, 'left', 65),
+                      ],
 
-              attachControl=[
-                  (rows, 'top', 10, sep0),
-                  (cls.cb_alpha, 'top', 10, sep1),
-                  (cls.cb_seq, 'top', 10, sep1),
-                  (cls.cb_seq, 'left', 12, cls.cb_alpha),
-                  (cls.cb_scale, 'top', 10, cls.cb_seq),
-                  (cls.size_mult_input, 'top', 10, cls.cb_seq),
-                  (cls.size_mult_input, 'left', 30, cls.cb_scale),
-                  (sep1, 'top', 10, rows),
-                  (sep2, 'top', 10, cls.cb_scale),
-                  (btn_notes_txt, 'top', 10, sep2),
-                  (btn_import, 'top', 10, btn_notes_txt),
+                      attachControl=[
+                          (rows, 'top', 10, sep0),
+                          (cls.cb_alpha, 'top', 10, sep1),
+                          (cls.cb_seq, 'top', 10, sep1),
+                          (cls.cb_seq, 'left', 12, cls.cb_alpha),
+                          (cls.cb_scale, 'top', 10, cls.cb_seq),
+                          (cls.size_mult_input, 'top', 10, cls.cb_seq),
+                          (cls.size_mult_input, 'left', 30, cls.cb_scale),
+                          (sep1, 'top', 10, rows),
+                          (sep2, 'top', 10, cls.cb_scale),
+                          (btn_notes_txt, 'top', 10, sep2),
+                          (btn_import, 'top', 10, btn_notes_txt),
 
-              ]
+                      ]
 
-
-              )
+                      )
 
         pm.showWindow(main_window)
 
@@ -362,5 +373,3 @@ class window_ui(object):
         size_mult_input = pm.textField(cls.size_mult_input, q=1, text=1)
         flag_seq = pm.checkBox(cls.cb_seq, q=1, value=1)
         main_import_images(img_pref, flag_alpha, flag_scale, size_mult_input, flag_seq)
-
-
